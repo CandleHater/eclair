@@ -57,10 +57,18 @@
         <developer>
             <id>sstone</id>
         </developer>
+        <developer>
+            <id>t-bast</id>
+        </developer>
+        <developer>
+            <id>araspitzu</id>
+        </developer>
     </developers>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- This needs to be hard-coded to enforce reproducible builds. See https://maven.apache.org/guides/mini/guide-reproducible-builds.html -->
+        <project.build.outputTimestamp>2019-12-22T10:00:00Z</project.build.outputTimestamp>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <scala.version>2.11.12</scala.version>
@@ -79,12 +87,12 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.0.2</version>
+                    <version>3.1.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.0.2</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>com.github.chrisdchristo</groupId>
@@ -97,12 +105,12 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>versions-maven-plugin</artifactId>
-                <version>2.3</version>
+                <version>2.7</version>
             </plugin>
             <plugin>
                 <groupId>pl.project13.maven</groupId>
                 <artifactId>git-commit-id-plugin</artifactId>
-                <version>2.2.3</version>
+                <version>2.2.6</version>
                 <executions>
                     <execution>
                         <goals>
@@ -117,7 +125,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.4.2</version>
+                <version>3.4.6</version>
                 <configuration>
                     <args combine.children="append">
                         <arg>-deprecation</arg>
@@ -162,7 +170,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.0.1</version>
+                <version>3.2.0</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -207,7 +215,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.20</version>
+                <version>2.22.2</version>
                 <configuration>
                     <skipTests>true</skipTests>
                 </configuration>
