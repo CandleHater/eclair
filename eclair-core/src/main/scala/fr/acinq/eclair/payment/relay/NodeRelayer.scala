@@ -99,7 +99,7 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
       case None => throw new RuntimeException(s"could not find pending incoming payment (paymentHash=$paymentHash)")
     }
 
-    case PaymentSent(id, paymentHash, paymentPreimage, parts) =>
+    case PaymentSent(id, paymentHash, paymentPreimage, _, _, parts) =>
       log.debug("trampoline payment successfully relayed")
       pendingOutgoing.get(id).foreach {
         case PendingResult(upstream, nextPayload) =>
@@ -129,7 +129,7 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
 
   private def relay(paymentHash: ByteVector32, upstream: Upstream.TrampolineRelayed, payloadOut: Onion.NodeRelayPayload, packetOut: OnionRoutingPacket): UUID = {
     val paymentId = UUID.randomUUID()
-    val paymentCfg = SendPaymentConfig(paymentId, paymentId, None, paymentHash, payloadOut.outgoingNodeId, upstream, None, storeInDb = false, publishEvent = false)
+    val paymentCfg = SendPaymentConfig(paymentId, paymentId, None, paymentHash, payloadOut.amountToForward, payloadOut.outgoingNodeId, upstream, None, storeInDb = false, publishEvent = false, Nil)
     val routeParams = computeRouteParams(nodeParams, upstream.amountIn, upstream.expiryIn, payloadOut.amountToForward, payloadOut.outgoingCltv)
     payloadOut.invoiceFeatures match {
       case Some(invoiceFeatures) =>
@@ -137,13 +137,13 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
         val routingHints = payloadOut.invoiceRoutingInfo.map(_.map(_.toSeq).toSeq).getOrElse(Nil)
         val payFSM = spawnOutgoingPayFSM(paymentCfg, multiPart = false)
         val finalPayload = Onion.createSinglePartPayload(payloadOut.amountToForward, payloadOut.outgoingCltv, payloadOut.paymentSecret)
-        val payment = SendPayment(paymentHash, payloadOut.outgoingNodeId, finalPayload, nodeParams.maxPaymentAttempts, routingHints, Some(routeParams))
+        val payment = SendPayment(payloadOut.outgoingNodeId, finalPayload, nodeParams.maxPaymentAttempts, routingHints, Some(routeParams))
         payFSM ! payment
       case None =>
         log.debug("relaying trampoline payment to next trampoline node")
         val payFSM = spawnOutgoingPayFSM(paymentCfg, multiPart = true)
         val paymentSecret = randomBytes32 // we generate a new secret to protect against probing attacks
-        val payment = SendMultiPartPayment(paymentHash, paymentSecret, payloadOut.outgoingNodeId, payloadOut.amountToForward, payloadOut.outgoingCltv, nodeParams.maxPaymentAttempts, routeParams = Some(routeParams), additionalTlvs = Seq(OnionTlv.TrampolineOnion(packetOut)))
+        val payment = SendMultiPartPayment(paymentSecret, payloadOut.outgoingNodeId, payloadOut.amountToForward, payloadOut.outgoingCltv, nodeParams.maxPaymentAttempts, routeParams = Some(routeParams), additionalTlvs = Seq(OnionTlv.TrampolineOnion(packetOut)))
         payFSM ! payment
     }
     paymentId
@@ -164,12 +164,12 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
 
   override def mdc(currentMessage: Any): MDC = {
     val paymentHash_opt = currentMessage match {
-      case IncomingPacket.NodeRelayPacket(add, _, _, _) => Some(add.paymentHash)
-      case MultiPartPaymentFSM.MultiPartHtlcFailed(paymentHash, _, _) => Some(paymentHash)
-      case MultiPartPaymentFSM.MultiPartHtlcSucceeded(paymentHash, _) => Some(paymentHash)
-      case MultiPartPaymentFSM.ExtraHtlcReceived(paymentHash, _, _) => Some(paymentHash)
-      case PaymentFailed(_, paymentHash, _, _) => Some(paymentHash)
-      case PaymentSent(_, paymentHash, _, _) => Some(paymentHash)
+      case m: IncomingPacket.NodeRelayPacket => Some(m.add.paymentHash)
+      case m: MultiPartPaymentFSM.MultiPartHtlcFailed => Some(m.paymentHash)
+      case m: MultiPartPaymentFSM.MultiPartHtlcSucceeded => Some(m.paymentHash)
+      case m: MultiPartPaymentFSM.ExtraHtlcReceived => Some(m.paymentHash)
+      case m: PaymentFailed => Some(m.paymentHash)
+      case m: PaymentSent => Some(m.paymentHash)
       case _ => None
     }
     Logs.mdc(category_opt = Some(Logs.LogCategory.PAYMENT), paymentHash_opt = paymentHash_opt)
