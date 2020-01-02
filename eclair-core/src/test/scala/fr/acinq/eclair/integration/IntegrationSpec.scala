@@ -441,6 +441,7 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
   }
 
   test("send a multi-part payment B->D") {
+    val start = Platform.currentTime
     val sender = TestProbe()
     val amount = 1000000000L.msat
     sender.send(nodes("D").paymentHandler, ReceivePayment(Some(amount), "split the restaurant bill", allowMultiPart = true))
@@ -465,6 +466,8 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
     assert(paymentParts.forall(p => p.parentId == paymentId))
     assert(paymentParts.forall(p => p.parentId != p.id))
     assert(paymentParts.forall(p => p.status.asInstanceOf[OutgoingPaymentStatus.Succeeded].feesPaid > 0.msat))
+
+    assert(nodes("B").nodeParams.db.audit.listSent(start, Platform.currentTime) === Seq(paymentSent.copy(parts = paymentSent.parts.map(_.copy(route = None)))))
 
     awaitCond(nodes("D").nodeParams.db.payments.getIncomingPayment(pr.paymentHash).exists(_.status.isInstanceOf[IncomingPaymentStatus.Received]))
     val Some(IncomingPayment(_, _, _, IncomingPaymentStatus.Received(receivedAmount, _))) = nodes("D").nodeParams.db.payments.getIncomingPayment(pr.paymentHash)
@@ -580,7 +583,8 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
 
     awaitCond(nodes("G").nodeParams.db.audit.listRelayed(start, Platform.currentTime).exists(_.paymentHash == pr.paymentHash))
     val relayed = nodes("G").nodeParams.db.audit.listRelayed(start, Platform.currentTime).filter(_.paymentHash == pr.paymentHash).head
-    assert(relayed.amountIn - relayed.amountOut === payment.trampolineFees)
+    assert(relayed.amountIn - relayed.amountOut > 0.msat)
+    assert(relayed.amountIn - relayed.amountOut < payment.trampolineFees)
 
     val outgoingSuccess = nodes("B").nodeParams.db.payments.listOutgoingPayments(paymentId).filter(p => p.status.isInstanceOf[OutgoingPaymentStatus.Succeeded])
     outgoingSuccess.foreach { case OutgoingPayment(_, _, _, _, _, _, recipientNodeId, _, _, OutgoingPaymentStatus.Succeeded(_, _, route, _)) =>
@@ -615,7 +619,8 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
 
     awaitCond(nodes("C").nodeParams.db.audit.listRelayed(start, Platform.currentTime).exists(_.paymentHash == pr.paymentHash))
     val relayed = nodes("C").nodeParams.db.audit.listRelayed(start, Platform.currentTime).filter(_.paymentHash == pr.paymentHash).head
-    assert(relayed.amountIn - relayed.amountOut === payment.trampolineFees)
+    assert(relayed.amountIn - relayed.amountOut > 0.msat)
+    assert(relayed.amountIn - relayed.amountOut < payment.trampolineFees)
 
     val outgoingSuccess = nodes("D").nodeParams.db.payments.listOutgoingPayments(paymentId).filter(p => p.status.isInstanceOf[OutgoingPaymentStatus.Succeeded])
     outgoingSuccess.foreach { case OutgoingPayment(_, _, _, _, _, _, recipientNodeId, _, _, OutgoingPaymentStatus.Succeeded(_, _, route, _)) =>
@@ -623,6 +628,8 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
       assert(route.lastOption === Some(HopSummary(nodes("C").nodeParams.nodeId, nodes("B").nodeParams.nodeId)))
     }
     assert(outgoingSuccess.map(_.amount).sum === amount + payment.trampolineFees)
+
+    assert(nodes("D").nodeParams.db.audit.listSent(start, Platform.currentTime) === Seq(paymentSent.copy(parts = paymentSent.parts.map(_.copy(route = None)))))
   }
 
   test("send a trampoline payment F3->A (via trampoline C, non-trampoline recipient)") {
@@ -654,7 +661,8 @@ class IntegrationSpec extends TestKit(ActorSystem("test")) with BitcoindService 
 
     awaitCond(nodes("C").nodeParams.db.audit.listRelayed(start, Platform.currentTime).exists(_.paymentHash == pr.paymentHash))
     val relayed = nodes("C").nodeParams.db.audit.listRelayed(start, Platform.currentTime).filter(_.paymentHash == pr.paymentHash).head
-    assert(relayed.amountIn - relayed.amountOut === payment.trampolineFees)
+    assert(relayed.amountIn - relayed.amountOut > 0.msat)
+    assert(relayed.amountIn - relayed.amountOut < payment.trampolineFees)
 
     val outgoingSuccess = nodes("F3").nodeParams.db.payments.listOutgoingPayments(paymentId).filter(p => p.status.isInstanceOf[OutgoingPaymentStatus.Succeeded])
     outgoingSuccess.foreach { case OutgoingPayment(_, _, _, _, _, _, recipientNodeId, _, _, OutgoingPaymentStatus.Succeeded(_, _, route, _)) =>

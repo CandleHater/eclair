@@ -102,11 +102,11 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
     case PaymentSent(id, paymentHash, paymentPreimage, _, _, parts) =>
       log.debug("trampoline payment successfully relayed")
       pendingOutgoing.get(id).foreach {
-        case PendingResult(upstream, nextPayload) =>
+        case PendingResult(upstream, _) =>
           fulfillPayment(upstream, paymentPreimage)
-          val fromChannelIds = upstream.adds.map(_.channelId)
-          val toChannelIds = parts.map(_.toChannelId)
-          context.system.eventStream.publish(TrampolinePaymentRelayed(upstream.amountIn, nextPayload.amountToForward, paymentHash, nextPayload.outgoingNodeId, fromChannelIds, toChannelIds))
+          val incoming = upstream.adds.map(add => PaymentRelayed.Part(add.amountMsat, add.channelId))
+          val outgoing = parts.map(part => PaymentRelayed.Part(part.amountWithFees, part.toChannelId))
+          context.system.eventStream.publish(TrampolinePaymentRelayed(paymentHash, incoming, outgoing))
       }
       context become main(pendingIncoming, pendingOutgoing - id)
 
@@ -132,7 +132,7 @@ class NodeRelayer(nodeParams: NodeParams, relayer: ActorRef, router: ActorRef, c
     val paymentCfg = SendPaymentConfig(paymentId, paymentId, None, paymentHash, payloadOut.amountToForward, payloadOut.outgoingNodeId, upstream, None, storeInDb = false, publishEvent = false, Nil)
     val routeParams = computeRouteParams(nodeParams, upstream.amountIn, upstream.expiryIn, payloadOut.amountToForward, payloadOut.outgoingCltv)
     payloadOut.invoiceFeatures match {
-      case Some(invoiceFeatures) =>
+      case Some(_) =>
         log.debug("relaying trampoline payment to non-trampoline recipient")
         val routingHints = payloadOut.invoiceRoutingInfo.map(_.map(_.toSeq).toSeq).getOrElse(Nil)
         val payFSM = spawnOutgoingPayFSM(paymentCfg, multiPart = false)

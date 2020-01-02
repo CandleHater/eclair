@@ -486,9 +486,8 @@ class ApiServiceSpec extends FunSuite with ScalatestRouteTest with IdiomaticMock
         system.eventStream.publish(prel)
         wsClient.expectMessage(expectedSerializedPrel)
 
-        val recipient = PublicKey(hex"0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9")
-        val ptrel = TrampolinePaymentRelayed(21 msat, 20 msat, ByteVector32.Zeroes, recipient, Seq(ByteVector32.Zeroes), Seq(ByteVector32.Zeroes, ByteVector32.One), 1553784963659L)
-        val expectedSerializedPtrel = """{"type":"trampoline-payment-relayed","amountIn":21,"amountOut":20,"paymentHash":"0000000000000000000000000000000000000000000000000000000000000000","toNodeId":"0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9","fromChannelIds":["0000000000000000000000000000000000000000000000000000000000000000"],"toChannelIds":["0000000000000000000000000000000000000000000000000000000000000000","0100000000000000000000000000000000000000000000000000000000000000"],"timestamp":1553784963659}"""
+        val ptrel = TrampolinePaymentRelayed(ByteVector32.Zeroes, Seq(PaymentRelayed.Part(21 msat, ByteVector32.Zeroes)), Seq(PaymentRelayed.Part(8 msat, ByteVector32.Zeroes), PaymentRelayed.Part(10 msat, ByteVector32.One)), 1553784963659L)
+        val expectedSerializedPtrel = """{"type":"trampoline-payment-relayed","paymentHash":"0000000000000000000000000000000000000000000000000000000000000000","incoming":[{"amount":21,"channelId":"0000000000000000000000000000000000000000000000000000000000000000"}],"outgoing":[{"amount":8,"channelId":"0000000000000000000000000000000000000000000000000000000000000000"},{"amount":10,"channelId":"0100000000000000000000000000000000000000000000000000000000000000"}],"timestamp":1553784963659}"""
         assert(serialization.write(ptrel) === expectedSerializedPtrel)
         system.eventStream.publish(ptrel)
         wsClient.expectMessage(expectedSerializedPtrel)
