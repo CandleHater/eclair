@@ -26,7 +26,7 @@ import fr.acinq.eclair.crypto.Sphinx
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.payment.send.MultiPartPaymentLifecycle.SendMultiPartPayment
 import fr.acinq.eclair.payment.send.PaymentLifecycle.{SendPayment, SendPaymentToRoute}
-import fr.acinq.eclair.payment.{LocalFailure, OutgoingPacket, PaymentFailed, PaymentRequest}
+import fr.acinq.eclair.payment.{LocalFailure, OutgoingPacket, PaymentFailed, PaymentRequest, PaymentSent}
 import fr.acinq.eclair.router.{ChannelHop, Hop, NodeHop, RouteParams}
 import fr.acinq.eclair.wire.Onion.FinalLegacyPayload
 import fr.acinq.eclair.wire.{Onion, OnionTlv}
@@ -187,6 +187,8 @@ object PaymentInitiator {
                                publishEvent: Boolean,
                                additionalHops: Seq[NodeHop]) {
     def fullRoute(hops: Seq[ChannelHop]): Seq[Hop] = hops ++ additionalHops
+
+    def createPaymentSent(preimage: ByteVector32, parts: Seq[PaymentSent.PartialPayment]) = PaymentSent(parentId, paymentHash, preimage, finalAmount, recipientNodeId, parts)
   }
 
 }

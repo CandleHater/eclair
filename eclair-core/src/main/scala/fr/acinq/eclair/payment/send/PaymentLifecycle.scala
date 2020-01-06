@@ -117,7 +117,7 @@ class PaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, router: A
 
     case Event(fulfill: UpdateFulfillHtlc, WaitingForComplete(s, c, cmd, _, _, _, _, route)) =>
       val p = PartialPayment(id, c.finalPayload.amount, cmd.amount - c.finalPayload.amount, fulfill.channelId, Some(cfg.fullRoute(route)))
-      onSuccess(s, PaymentSent(id, paymentHash, fulfill.paymentPreimage, cfg.finalAmount, cfg.recipientNodeId, p :: Nil))
+      onSuccess(s, cfg.createPaymentSent(fulfill.paymentPreimage, p :: Nil))
       myStop()
 
     case Event(fail: UpdateFailHtlc, WaitingForComplete(s, c, _, failures, sharedSecrets, ignoreNodes, ignoreChannels, hops)) =>

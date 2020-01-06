@@ -151,8 +151,8 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
 
     val pp1 = PartialPayment(childIds.head, 1000 * 1000 msat, 0 msat, randomBytes32, None)
     val pp2 = PartialPayment(childIds(1), 1000 * 1000 msat, 0 msat, randomBytes32, None)
-    childPayFsm.send(payFsm, PaymentSent(childIds.head, paymentHash, paymentPreimage, finalAmount, b, Seq(pp1)))
-    childPayFsm.send(payFsm, PaymentSent(childIds(1), paymentHash, paymentPreimage, finalAmount, b, Seq(pp2)))
+    childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, finalAmount, b, Seq(pp1)))
+    childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, finalAmount, b, Seq(pp2)))
     val expectedMsg = PaymentSent(paymentId, paymentHash, paymentPreimage, finalAmount, finalRecipient, Seq(pp1, pp2))
     sender.expectMsg(expectedMsg)
     eventListener.expectMsg(expectedMsg)
@@ -195,7 +195,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     initPayment(f, payment, emptyStats.copy(capacity = Stats(Seq(1500), d => Satoshi(d.toLong))), localChannels())
     waitUntilAmountSent(f, payment.totalAmount)
     payFsm.stateData.asInstanceOf[PaymentProgress].pending.foreach {
-      case (id, payment) => childPayFsm.send(payFsm, PaymentSent(id, paymentHash, paymentPreimage, finalAmount, e, Seq(PartialPayment(id, payment.finalPayload.amount, 5 msat, randomBytes32, None))))
+      case (id, payment) => childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, finalAmount, e, Seq(PartialPayment(id, payment.finalPayload.amount, 5 msat, randomBytes32, None))))
     }
 
     val result = sender.expectMsgType[PaymentSent]
@@ -229,7 +229,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     val partialPayments = pending.map {
       case (id, payment) => PartialPayment(id, payment.finalPayload.amount, 1 msat, randomBytes32, Some(hop_ac_1 :: hop_ab_2 :: Nil))
     }
-    partialPayments.foreach(pp => childPayFsm.send(payFsm, PaymentSent(pp.id, paymentHash, paymentPreimage, finalAmount, e, Seq(pp))))
+    partialPayments.foreach(pp => childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, finalAmount, e, Seq(pp))))
     val result = sender.expectMsgType[PaymentSent]
     assert(result.id === paymentId)
     assert(result.paymentHash === paymentHash)
@@ -258,7 +258,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     val partialPayments = pending.map {
       case (id, payment) => PartialPayment(id, payment.finalPayload.amount, 1 msat, randomBytes32, None)
     }
-    partialPayments.foreach(pp => childPayFsm.send(payFsm, PaymentSent(pp.id, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(pp))))
+    partialPayments.foreach(pp => childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(pp))))
     val result = sender.expectMsgType[PaymentSent]
     assert(result.id === paymentId)
     assert(result.paymentHash === paymentHash)
@@ -309,7 +309,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     initPayment(f, payment, emptyStats.copy(capacity = Stats(Seq(1000), d => Satoshi(d.toLong))), testChannels1)
     waitUntilAmountSent(f, payment.totalAmount)
     payFsm.stateData.asInstanceOf[PaymentProgress].pending.foreach {
-      case (id, p) => childPayFsm.send(payFsm, PaymentSent(id, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id, p.finalPayload.amount, 5 msat, randomBytes32, None))))
+      case (id, p) => childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id, p.finalPayload.amount, 5 msat, randomBytes32, None))))
     }
 
     val result = sender.expectMsgType[PaymentSent]
@@ -462,7 +462,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
 
     // If one of the payments succeeds, the recipient MUST succeed them all: we can consider the whole payment succeeded.
     val (id1, payment1) = pending.head
-    childPayFsm.send(payFsm, PaymentSent(id1, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id1, payment1.finalPayload.amount, 0 msat, randomBytes32, None))))
+    childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id1, payment1.finalPayload.amount, 0 msat, randomBytes32, None))))
     awaitCond(payFsm.stateName === PAYMENT_SUCCEEDED)
 
     // A partial failure should simply be ignored.
@@ -470,7 +470,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     childPayFsm.send(payFsm, PaymentFailed(id2, paymentHash, Nil))
 
     pending.tail.tail.foreach {
-      case (id, p) => childPayFsm.send(payFsm, PaymentSent(id, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id, p.finalPayload.amount, 0 msat, randomBytes32, None))))
+      case (id, p) => childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id, p.finalPayload.amount, 0 msat, randomBytes32, None))))
     }
     val result = sender.expectMsgType[PaymentSent]
     assert(result.id === paymentId)
@@ -492,7 +492,7 @@ class MultiPartPaymentLifecycleSpec extends TestKit(ActorSystem("test")) with fi
     // The in-flight HTLC set doesn't pay the full amount, so the recipient MUST not fulfill any of those.
     // But if he does, it's too bad for him as we have obtained a cheaper proof of payment.
     val (id2, payment2) = pending.tail.head
-    childPayFsm.send(payFsm, PaymentSent(id2, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id2, payment2.finalPayload.amount, 5 msat, randomBytes32, None))))
+    childPayFsm.send(payFsm, PaymentSent(paymentId, paymentHash, paymentPreimage, payment.totalAmount, e, Seq(PartialPayment(id2, payment2.finalPayload.amount, 5 msat, randomBytes32, None))))
     awaitCond(payFsm.stateName === PAYMENT_SUCCEEDED)
 
     // Even if all other child payments fail, we obtained the preimage so the payment is a success from our point of view.

@@ -59,6 +59,7 @@ class PaymentLifecycleSpec extends BaseRouterSpec {
   val defaultPaymentRequest = SendPaymentRequest(defaultAmountMsat, defaultPaymentHash, d, 1, externalId = Some(defaultExternalId))
 
   case class PaymentFixture(id: UUID,
+                            parentId: UUID,
                             nodeParams: NodeParams,
                             paymentFSM: TestFSMRef[PaymentLifecycle.State, PaymentLifecycle.Data, PaymentLifecycle],
                             routerForwarder: TestProbe,
@@ -68,15 +69,15 @@ class PaymentLifecycleSpec extends BaseRouterSpec {
                             eventListener: TestProbe)
 
   def createPaymentLifecycle(storeInDb: Boolean = true, publishEvent: Boolean = true): PaymentFixture = {
-    val id = UUID.randomUUID()
+    val (id, parentId) = (UUID.randomUUID(), UUID.randomUUID())
     val nodeParams = TestConstants.Alice.nodeParams.copy(keyManager = testKeyManager)
-    val cfg = SendPaymentConfig(id, id, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, d, Upstream.Local(id), defaultPaymentRequest.paymentRequest, storeInDb, publishEvent, Nil)
+    val cfg = SendPaymentConfig(id, parentId, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, d, Upstream.Local(id), defaultPaymentRequest.paymentRequest, storeInDb, publishEvent, Nil)
     val (routerForwarder, register, sender, monitor, eventListener) = (TestProbe(), TestProbe(), TestProbe(), TestProbe(), TestProbe())
     val paymentFSM = TestFSMRef(new PaymentLifecycle(nodeParams, cfg, routerForwarder.ref, register.ref))
     paymentFSM ! SubscribeTransitionCallBack(monitor.ref)
     val CurrentState(_, WAITING_FOR_REQUEST) = monitor.expectMsgClass(classOf[CurrentState[_]])
     system.eventStream.subscribe(eventListener.ref, classOf[PaymentEvent])
-    PaymentFixture(id, nodeParams, paymentFSM, routerForwarder, register, sender, monitor, eventListener)
+    PaymentFixture(id, parentId, nodeParams, paymentFSM, routerForwarder, register, sender, monitor, eventListener)
   }
 
   test("send to route") { routerFixture =>
@@ -94,10 +95,11 @@ class PaymentLifecycleSpec extends BaseRouterSpec {
     val Transition(_, WAITING_FOR_ROUTE, WAITING_FOR_PAYMENT_COMPLETE) = monitor.expectMsgClass(classOf[Transition[_]])
     awaitCond(nodeParams.db.payments.getOutgoingPayment(id).exists(_.status == OutgoingPaymentStatus.Pending))
     val Some(outgoing) = nodeParams.db.payments.getOutgoingPayment(id)
-    assert(outgoing.copy(createdAt = 0) === OutgoingPayment(id, id, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, defaultAmountMsat, d, 0, None, OutgoingPaymentStatus.Pending))
+    assert(outgoing.copy(createdAt = 0) === OutgoingPayment(id, parentId, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, defaultAmountMsat, d, 0, None, OutgoingPaymentStatus.Pending))
     sender.send(paymentFSM, UpdateFulfillHtlc(ByteVector32.Zeroes, 0, defaultPaymentHash))
 
-    sender.expectMsgType[PaymentSent]
+    val ps = sender.expectMsgType[PaymentSent]
+    assert(ps.id === parentId)
     awaitCond(nodeParams.db.payments.getOutgoingPayment(id).exists(_.status.isInstanceOf[OutgoingPaymentStatus.Succeeded]))
   }
 
@@ -439,14 +441,16 @@ class PaymentLifecycleSpec extends BaseRouterSpec {
     val Transition(_, WAITING_FOR_ROUTE, WAITING_FOR_PAYMENT_COMPLETE) = monitor.expectMsgClass(classOf[Transition[_]])
     awaitCond(nodeParams.db.payments.getOutgoingPayment(id).exists(_.status === OutgoingPaymentStatus.Pending))
     val Some(outgoing) = nodeParams.db.payments.getOutgoingPayment(id)
-    assert(outgoing.copy(createdAt = 0) === OutgoingPayment(id, id, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, defaultAmountMsat, d, 0, None, OutgoingPaymentStatus.Pending))
+    assert(outgoing.copy(createdAt = 0) === OutgoingPayment(id, parentId, Some(defaultExternalId), defaultPaymentHash, defaultAmountMsat, defaultAmountMsat, d, 0, None, OutgoingPaymentStatus.Pending))
     sender.send(paymentFSM, UpdateFulfillHtlc(ByteVector32.Zeroes, 0, defaultPaymentPreimage))
 
     val ps = eventListener.expectMsgType[PaymentSent]
+    assert(ps.id === parentId)
     assert(ps.feesPaid > 0.msat)
     assert(ps.finalAmount === defaultAmountMsat)
     assert(ps.paymentHash === defaultPaymentHash)
     assert(ps.paymentPreimage === defaultPaymentPreimage)
+    assert(ps.parts.head.id === id)
     awaitCond(nodeParams.db.payments.getOutgoingPayment(id).exists(_.status.isInstanceOf[OutgoingPaymentStatus.Succeeded]))
   }
 

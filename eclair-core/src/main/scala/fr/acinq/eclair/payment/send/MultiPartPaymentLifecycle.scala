@@ -139,7 +139,7 @@ class MultiPartPaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, 
     case Event(ps: PaymentSent, d: PaymentProgress) =>
       require(ps.parts.length == 1, "child payment must contain only one part")
       // As soon as we get the preimage we can consider that the whole payment succeeded (we have a proof of payment).
-      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending.keySet - ps.id)
+      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending.keySet - ps.parts.head.id)
   }
 
   when(RETRY_WITH_UPDATED_BALANCES) {
@@ -168,7 +168,7 @@ class MultiPartPaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, 
     case Event(ps: PaymentSent, d: PaymentProgress) =>
       require(ps.parts.length == 1, "child payment must contain only one part")
       // As soon as we get the preimage we can consider that the whole payment succeeded (we have a proof of payment).
-      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending.keySet - ps.id)
+      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending.keySet - ps.parts.head.id)
   }
 
   when(PAYMENT_ABORTED) {
@@ -185,17 +185,17 @@ class MultiPartPaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, 
     // This is a spec violation and is too bad for them, we obtained a proof of payment without paying the full amount.
     case Event(ps: PaymentSent, d: PaymentAborted) =>
       require(ps.parts.length == 1, "child payment must contain only one part")
-      log.warning(s"payment recipient fulfilled incomplete multi-part payment (id=${ps.id})")
-      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending - ps.id)
+      log.warning(s"payment recipient fulfilled incomplete multi-part payment (id=${ps.parts.head.id})")
+      goto(PAYMENT_SUCCEEDED) using PaymentSucceeded(d.sender, d.request, ps.paymentPreimage, ps.parts, d.pending - ps.parts.head.id)
   }
 
   when(PAYMENT_SUCCEEDED) {
     case Event(ps: PaymentSent, d: PaymentSucceeded) =>
       require(ps.parts.length == 1, "child payment must contain only one part")
       val parts = d.parts ++ ps.parts
-      val pending = d.pending - ps.id
+      val pending = d.pending - ps.parts.head.id
       if (pending.isEmpty) {
-        myStop(d.sender, Right(PaymentSent(id, paymentHash, d.preimage, cfg.finalAmount, cfg.recipientNodeId, parts)))
+        myStop(d.sender, Right(cfg.createPaymentSent(d.preimage, parts)))
       } else {
         stay using d.copy(parts = parts, pending = pending)
       }
@@ -206,7 +206,7 @@ class MultiPartPaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, 
       log.warning(s"payment succeeded but partial payment failed (id=${pf.id})")
       val pending = d.pending - pf.id
       if (pending.isEmpty) {
-        myStop(d.sender, Right(PaymentSent(id, paymentHash, d.preimage, cfg.finalAmount, cfg.recipientNodeId, d.parts)))
+        myStop(d.sender, Right(cfg.createPaymentSent(d.preimage, d.parts)))
       } else {
         stay using d.copy(pending = pending)
       }
@@ -221,7 +221,7 @@ class MultiPartPaymentLifecycle(nodeParams: NodeParams, cfg: SendPaymentConfig, 
 
     case _ -> PAYMENT_SUCCEEDED => nextStateData match {
       case d: PaymentSucceeded if d.pending.isEmpty =>
-        myStop(d.sender, Right(PaymentSent(id, paymentHash, d.preimage, cfg.finalAmount, cfg.recipientNodeId, d.parts)))
+        myStop(d.sender, Right(cfg.createPaymentSent(d.preimage, d.parts)))
       case _ =>
     }
   }
