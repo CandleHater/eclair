@@ -74,9 +74,9 @@ class SqlitePaymentsDbSpec extends FunSuite {
     assert(preMigrationDb.getIncomingPayment(paymentHash1).isEmpty)
 
     // add a few rows
-    val ps1 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), None, paymentHash1, 12345 msat, 12345 msat, alice, 1000, None, OutgoingPaymentStatus.Pending)
+    val ps1 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), None, paymentHash1, None, 12345 msat, 12345 msat, alice, 1000, None, OutgoingPaymentStatus.Pending)
     val i1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(500 msat), paymentHash1, davePriv, "Some invoice", expirySeconds = None, timestamp = 1)
-    val pr1 = IncomingPayment(i1, preimage1, i1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(550 msat, 1100))
+    val pr1 = IncomingPayment(i1, preimage1, Some(PaymentType.Standard), i1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(550 msat, 1100))
 
     preMigrationDb.addOutgoingPayment(ps1)
     preMigrationDb.addIncomingPayment(i1, preimage1)
@@ -113,13 +113,13 @@ class SqlitePaymentsDbSpec extends FunSuite {
     val id1 = UUID.randomUUID()
     val id2 = UUID.randomUUID()
     val id3 = UUID.randomUUID()
-    val ps1 = OutgoingPayment(id1, id1, None, randomBytes32, 561 msat, 561 msat, PrivateKey(ByteVector32.One).publicKey, 1000, None, OutgoingPaymentStatus.Pending)
-    val ps2 = OutgoingPayment(id2, id2, None, randomBytes32, 1105 msat, 1105 msat, PrivateKey(ByteVector32.One).publicKey, 1010, None, OutgoingPaymentStatus.Failed(Nil, 1050))
-    val ps3 = OutgoingPayment(id3, id3, None, paymentHash1, 1729 msat, 1729 msat, PrivateKey(ByteVector32.One).publicKey, 1040, None, OutgoingPaymentStatus.Succeeded(preimage1, 0 msat, Nil, 1060))
+    val ps1 = OutgoingPayment(id1, id1, None, randomBytes32, None, 561 msat, 561 msat, PrivateKey(ByteVector32.One).publicKey, 1000, None, OutgoingPaymentStatus.Pending)
+    val ps2 = OutgoingPayment(id2, id2, None, randomBytes32, None, 1105 msat, 1105 msat, PrivateKey(ByteVector32.One).publicKey, 1010, None, OutgoingPaymentStatus.Failed(Nil, 1050))
+    val ps3 = OutgoingPayment(id3, id3, None, paymentHash1, None, 1729 msat, 1729 msat, PrivateKey(ByteVector32.One).publicKey, 1040, None, OutgoingPaymentStatus.Succeeded(preimage1, 0 msat, Nil, 1060))
     val i1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(12345678 msat), paymentHash1, davePriv, "Some invoice", expirySeconds = None, timestamp = 1)
-    val pr1 = IncomingPayment(i1, preimage1, i1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(12345678 msat, 1090))
+    val pr1 = IncomingPayment(i1, preimage1, None, i1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(12345678 msat, 1090))
     val i2 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(12345678 msat), paymentHash2, carolPriv, "Another invoice", expirySeconds = Some(30), timestamp = 1)
-    val pr2 = IncomingPayment(i2, preimage2, i2.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
+    val pr2 = IncomingPayment(i2, preimage2, None, i2.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
 
     // Changes between version 2 and 3 to sent_payments:
     //  - removed the status column
@@ -199,12 +199,12 @@ class SqlitePaymentsDbSpec extends FunSuite {
     }
 
     val i3 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(561 msat), paymentHash3, alicePriv, "invoice #3", expirySeconds = Some(30))
-    val pr3 = IncomingPayment(i3, preimage3, i3.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
+    val pr3 = IncomingPayment(i3, preimage3, Some(PaymentType.Standard), i3.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
     postMigrationDb.addIncomingPayment(i3, pr3.paymentPreimage)
 
-    val ps4 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("1"), randomBytes32, 123 msat, 123 msat, alice, 1100, Some(i3), OutgoingPaymentStatus.Pending)
-    val ps5 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("2"), randomBytes32, 456 msat, 456 msat, bob, 1150, Some(i2), OutgoingPaymentStatus.Succeeded(preimage1, 42 msat, Nil, 1180))
-    val ps6 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("3"), randomBytes32, 789 msat, 789 msat, bob, 1250, None, OutgoingPaymentStatus.Failed(Nil, 1300))
+    val ps4 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("1"), randomBytes32, None, 123 msat, 123 msat, alice, 1100, Some(i3), OutgoingPaymentStatus.Pending)
+    val ps5 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("2"), randomBytes32, None, 456 msat, 456 msat, bob, 1150, Some(i2), OutgoingPaymentStatus.Succeeded(preimage1, 42 msat, Nil, 1180))
+    val ps6 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), Some("3"), randomBytes32, None, 789 msat, 789 msat, bob, 1250, None, OutgoingPaymentStatus.Failed(Nil, 1300))
     postMigrationDb.addOutgoingPayment(ps4)
     postMigrationDb.addOutgoingPayment(ps5.copy(status = OutgoingPaymentStatus.Pending))
     postMigrationDb.updateOutgoingPayment(PaymentSent(ps5.parentId, ps5.paymentHash, preimage1, ps5.amount, ps5.recipientNodeId, Seq(PaymentSent.PartialPayment(ps5.id, ps5.amount, 42 msat, randomBytes32, None, 1180))))
@@ -238,9 +238,9 @@ class SqlitePaymentsDbSpec extends FunSuite {
     val (id1, id2, id3) = (UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
     val parentId = UUID.randomUUID()
     val invoice1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(2834 msat), paymentHash1, bobPriv, "invoice #1", expirySeconds = Some(30))
-    val ps1 = OutgoingPayment(id1, id1, Some("42"), randomBytes32, 561 msat, 561 msat, alice, 1000, None, OutgoingPaymentStatus.Failed(Seq(FailureSummary(FailureType.REMOTE, "no candy for you", List(HopSummary(hop_ab), HopSummary(hop_bc)))), 1020))
-    val ps2 = OutgoingPayment(id2, parentId, Some("42"), paymentHash1, 1105 msat, 1105 msat, bob, 1010, Some(invoice1), OutgoingPaymentStatus.Pending)
-    val ps3 = OutgoingPayment(id3, parentId, None, paymentHash1, 1729 msat, 1729 msat, bob, 1040, None, OutgoingPaymentStatus.Succeeded(preimage1, 10 msat, Seq(HopSummary(hop_ab), HopSummary(hop_bc)), 1060))
+    val ps1 = OutgoingPayment(id1, id1, Some("42"), randomBytes32, None, 561 msat, 561 msat, alice, 1000, None, OutgoingPaymentStatus.Failed(Seq(FailureSummary(FailureType.REMOTE, "no candy for you", List(HopSummary(hop_ab), HopSummary(hop_bc)))), 1020))
+    val ps2 = OutgoingPayment(id2, parentId, Some("42"), paymentHash1, None, 1105 msat, 1105 msat, bob, 1010, Some(invoice1), OutgoingPaymentStatus.Pending)
+    val ps3 = OutgoingPayment(id3, parentId, None, paymentHash1, None, 1729 msat, 1729 msat, bob, 1040, None, OutgoingPaymentStatus.Succeeded(preimage1, 10 msat, Seq(HopSummary(hop_ab), HopSummary(hop_bc)), 1060))
 
     using(connection.prepareStatement("INSERT INTO sent_payments (id, parent_id, external_id, payment_hash, amount_msat, target_node_id, created_at, completed_at, failures) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) { statement =>
       statement.setString(1, ps1.id.toString)
@@ -283,6 +283,7 @@ class SqlitePaymentsDbSpec extends FunSuite {
 
     // Changes between version 3 and 4 to sent_payments:
     //  - added final amount column
+    //  - added payment type column
     //  - renamed target_node_id -> recipient_node_id
     //  - re-ordered columns
 
@@ -301,7 +302,7 @@ class SqlitePaymentsDbSpec extends FunSuite {
       assert(getVersion(statement, "payments", 4) == 4) // version still to 4
     }
 
-    val ps4 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), None, randomBytes32, 50 msat, 100 msat, carol, 1100, Some(invoice1), OutgoingPaymentStatus.Pending)
+    val ps4 = OutgoingPayment(UUID.randomUUID(), UUID.randomUUID(), None, randomBytes32, Some(PaymentType.SwapOut), 50 msat, 100 msat, carol, 1100, Some(invoice1), OutgoingPaymentStatus.Pending)
     postMigrationDb.addOutgoingPayment(ps4)
     postMigrationDb.updateOutgoingPayment(PaymentSent(parentId, paymentHash1, preimage1, ps2.finalAmount, ps2.recipientNodeId, Seq(PaymentSent.PartialPayment(id2, ps2.amount, 15 msat, randomBytes32, Some(Seq(hop_ab)), 1105))))
 
@@ -317,23 +318,23 @@ class SqlitePaymentsDbSpec extends FunSuite {
 
     val expiredInvoice1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(561 msat), randomBytes32, alicePriv, "invoice #1", timestamp = 1)
     val expiredInvoice2 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(1105 msat), randomBytes32, bobPriv, "invoice #2", timestamp = 2, expirySeconds = Some(30))
-    val expiredPayment1 = IncomingPayment(expiredInvoice1, randomBytes32, expiredInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
-    val expiredPayment2 = IncomingPayment(expiredInvoice2, randomBytes32, expiredInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
+    val expiredPayment1 = IncomingPayment(expiredInvoice1, randomBytes32, Some(PaymentType.Standard), expiredInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
+    val expiredPayment2 = IncomingPayment(expiredInvoice2, randomBytes32, Some(PaymentType.Standard), expiredInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Expired)
 
     val pendingInvoice1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(561 msat), randomBytes32, alicePriv, "invoice #3")
     val pendingInvoice2 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(1105 msat), randomBytes32, bobPriv, "invoice #4", expirySeconds = Some(30))
-    val pendingPayment1 = IncomingPayment(pendingInvoice1, randomBytes32, pendingInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
-    val pendingPayment2 = IncomingPayment(pendingInvoice2, randomBytes32, pendingInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
+    val pendingPayment1 = IncomingPayment(pendingInvoice1, randomBytes32, Some(PaymentType.Standard), pendingInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
+    val pendingPayment2 = IncomingPayment(pendingInvoice2, randomBytes32, Some(PaymentType.SwapIn), pendingInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Pending)
 
     val paidInvoice1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(561 msat), randomBytes32, alicePriv, "invoice #5")
     val paidInvoice2 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(1105 msat), randomBytes32, bobPriv, "invoice #6", expirySeconds = Some(60))
     val receivedAt1 = Platform.currentTime + 1
     val receivedAt2 = Platform.currentTime + 2
-    val payment1 = IncomingPayment(paidInvoice1, randomBytes32, paidInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(561 msat, receivedAt2))
-    val payment2 = IncomingPayment(paidInvoice2, randomBytes32, paidInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(1111 msat, receivedAt2))
+    val payment1 = IncomingPayment(paidInvoice1, randomBytes32, Some(PaymentType.Standard), paidInvoice1.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(561 msat, receivedAt2))
+    val payment2 = IncomingPayment(paidInvoice2, randomBytes32, Some(PaymentType.Standard), paidInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(1111 msat, receivedAt2))
 
     db.addIncomingPayment(pendingInvoice1, pendingPayment1.paymentPreimage)
-    db.addIncomingPayment(pendingInvoice2, pendingPayment2.paymentPreimage)
+    db.addIncomingPayment(pendingInvoice2, pendingPayment2.paymentPreimage, PaymentType.SwapIn)
     db.addIncomingPayment(expiredInvoice1, expiredPayment1.paymentPreimage)
     db.addIncomingPayment(expiredInvoice2, expiredPayment2.paymentPreimage)
     db.addIncomingPayment(paidInvoice1, payment1.paymentPreimage)
@@ -365,8 +366,8 @@ class SqlitePaymentsDbSpec extends FunSuite {
 
     val parentId = UUID.randomUUID()
     val i1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(123 msat), paymentHash1, davePriv, "Some invoice", expirySeconds = None, timestamp = 0)
-    val s1 = OutgoingPayment(UUID.randomUUID(), parentId, None, paymentHash1, 123 msat, 600 msat, dave, 100, Some(i1), OutgoingPaymentStatus.Pending)
-    val s2 = OutgoingPayment(UUID.randomUUID(), parentId, Some("1"), paymentHash1, 456 msat, 600 msat, dave, 200, None, OutgoingPaymentStatus.Pending)
+    val s1 = OutgoingPayment(UUID.randomUUID(), parentId, None, paymentHash1, None, 123 msat, 600 msat, dave, 100, Some(i1), OutgoingPaymentStatus.Pending)
+    val s2 = OutgoingPayment(UUID.randomUUID(), parentId, Some("1"), paymentHash1, Some(PaymentType.SwapOut), 456 msat, 600 msat, dave, 200, None, OutgoingPaymentStatus.Pending)
 
     assert(db.listOutgoingPayments(0, Platform.currentTime).isEmpty)
     db.addOutgoingPayment(s1)
@@ -386,7 +387,7 @@ class SqlitePaymentsDbSpec extends FunSuite {
     assert(db.listOutgoingPayments(ByteVector32.Zeroes) === Nil)
 
     val s3 = s2.copy(id = UUID.randomUUID(), amount = 789 msat, createdAt = 300)
-    val s4 = s2.copy(id = UUID.randomUUID(), createdAt = 300)
+    val s4 = s2.copy(id = UUID.randomUUID(), paymentType = Some(PaymentType.Standard), createdAt = 300)
     db.addOutgoingPayment(s3)
     db.addOutgoingPayment(s4)
 
@@ -420,15 +421,15 @@ class SqlitePaymentsDbSpec extends FunSuite {
 
     // -- feed db with incoming payments
     val expiredInvoice = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(123 msat), randomBytes32, alicePriv, "incoming #1", timestamp = 1)
-    val expiredPayment = IncomingPayment(expiredInvoice, randomBytes32, 100, IncomingPaymentStatus.Expired)
+    val expiredPayment = IncomingPayment(expiredInvoice, randomBytes32, Some(PaymentType.Standard), 100, IncomingPaymentStatus.Expired)
     val pendingInvoice = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(456 msat), randomBytes32, alicePriv, "incoming #2")
-    val pendingPayment = IncomingPayment(pendingInvoice, randomBytes32, 120, IncomingPaymentStatus.Pending)
+    val pendingPayment = IncomingPayment(pendingInvoice, randomBytes32, Some(PaymentType.Standard), 120, IncomingPaymentStatus.Pending)
     val paidInvoice1 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(789 msat), randomBytes32, alicePriv, "incoming #3")
     val receivedAt1 = 150
-    val receivedPayment1 = IncomingPayment(paidInvoice1, randomBytes32, 130, IncomingPaymentStatus.Received(561 msat, receivedAt1))
+    val receivedPayment1 = IncomingPayment(paidInvoice1, randomBytes32, Some(PaymentType.Standard), 130, IncomingPaymentStatus.Received(561 msat, receivedAt1))
     val paidInvoice2 = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(888 msat), randomBytes32, alicePriv, "incoming #4")
     val receivedAt2 = 160
-    val receivedPayment2 = IncomingPayment(paidInvoice2, randomBytes32, paidInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(889 msat, receivedAt2))
+    val receivedPayment2 = IncomingPayment(paidInvoice2, randomBytes32, Some(PaymentType.Standard), paidInvoice2.timestamp.seconds.toMillis, IncomingPaymentStatus.Received(889 msat, receivedAt2))
     db.addIncomingPayment(pendingInvoice, pendingPayment.paymentPreimage)
     db.addIncomingPayment(expiredInvoice, expiredPayment.paymentPreimage)
     db.addIncomingPayment(paidInvoice1, receivedPayment1.paymentPreimage)
@@ -442,11 +443,11 @@ class SqlitePaymentsDbSpec extends FunSuite {
     val invoice = PaymentRequest(Block.TestnetGenesisBlock.hash, Some(1337 msat), paymentHash1, davePriv, "outgoing #1", expirySeconds = None, timestamp = 0)
 
     // 1st attempt, pending -> failed
-    val outgoing1 = OutgoingPayment(UUID.randomUUID(), parentId1, None, paymentHash1, 123 msat, 123 msat, alice, 200, Some(invoice), OutgoingPaymentStatus.Pending)
+    val outgoing1 = OutgoingPayment(UUID.randomUUID(), parentId1, None, paymentHash1, None, 123 msat, 123 msat, alice, 200, Some(invoice), OutgoingPaymentStatus.Pending)
     db.addOutgoingPayment(outgoing1)
     db.updateOutgoingPayment(PaymentFailed(outgoing1.id, outgoing1.paymentHash, Nil, 210))
     // 2nd attempt: pending
-    val outgoing2 = OutgoingPayment(UUID.randomUUID(), parentId1, None, paymentHash1, 123 msat, 123 msat, alice, 211, Some(invoice), OutgoingPaymentStatus.Pending)
+    val outgoing2 = OutgoingPayment(UUID.randomUUID(), parentId1, None, paymentHash1, Some(PaymentType.Standard), 123 msat, 123 msat, alice, 211, Some(invoice), OutgoingPaymentStatus.Pending)
     db.addOutgoingPayment(outgoing2)
 
     // -- 1st check: result contains 2 incoming PAID, 1 outgoing PENDING. Outgoing1 must not be overridden by Outgoing2
@@ -458,8 +459,8 @@ class SqlitePaymentsDbSpec extends FunSuite {
 
     // failed #2 and add a successful payment (made of 2 partial payments)
     db.updateOutgoingPayment(PaymentFailed(outgoing2.id, outgoing2.paymentHash, Nil, 250))
-    val outgoing3 = OutgoingPayment(UUID.randomUUID(), parentId2, None, paymentHash1, 200 msat, 500 msat, bob, 300, Some(invoice), OutgoingPaymentStatus.Pending)
-    val outgoing4 = OutgoingPayment(UUID.randomUUID(), parentId2, None, paymentHash1, 300 msat, 500 msat, bob, 310, Some(invoice), OutgoingPaymentStatus.Pending)
+    val outgoing3 = OutgoingPayment(UUID.randomUUID(), parentId2, None, paymentHash1, None, 200 msat, 500 msat, bob, 300, Some(invoice), OutgoingPaymentStatus.Pending)
+    val outgoing4 = OutgoingPayment(UUID.randomUUID(), parentId2, None, paymentHash1, None, 300 msat, 500 msat, bob, 310, Some(invoice), OutgoingPaymentStatus.Pending)
     db.addOutgoingPayment(outgoing3)
     db.addOutgoingPayment(outgoing4)
     // complete #2 and #3 partial payments

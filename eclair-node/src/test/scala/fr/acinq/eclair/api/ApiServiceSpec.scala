@@ -297,7 +297,7 @@ class ApiServiceSpec extends FunSuite with ScalatestRouteTest with IdiomaticMock
 
   test("'getreceivedinfo'") {
     val invoice = "lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpuaztrnwngzn3kdzw5hydlzf03qdgm2hdq27cqv3agm2awhz5se903vruatfhq77w3ls4evs3ch9zw97j25emudupq63nyw24cg27h2rspfj9srp"
-    val defaultPayment = IncomingPayment(PaymentRequest.read(invoice), ByteVector32.One, 42, IncomingPaymentStatus.Pending)
+    val defaultPayment = IncomingPayment(PaymentRequest.read(invoice), ByteVector32.One, None, 42, IncomingPaymentStatus.Pending)
     val eclair = mock[Eclair]
     val notFound = randomBytes32
     eclair.receivedInfo(notFound)(any) returns Future.successful(None)
@@ -355,7 +355,7 @@ class ApiServiceSpec extends FunSuite with ScalatestRouteTest with IdiomaticMock
   }
 
   test("'getsentinfo'") {
-    val defaultPayment = OutgoingPayment(UUID.fromString("00000000-0000-0000-0000-000000000000"), UUID.fromString("11111111-1111-1111-1111-111111111111"), None, ByteVector32.Zeroes, 42 msat, 50 msat, aliceNodeId, 1, None, OutgoingPaymentStatus.Pending)
+    val defaultPayment = OutgoingPayment(UUID.fromString("00000000-0000-0000-0000-000000000000"), UUID.fromString("11111111-1111-1111-1111-111111111111"), None, ByteVector32.Zeroes, None, 42 msat, 50 msat, aliceNodeId, 1, None, OutgoingPaymentStatus.Pending)
     val eclair = mock[Eclair]
     val pending = UUID.randomUUID()
     eclair.sentInfo(Left(pending))(any) returns Future.successful(Seq(defaultPayment))
